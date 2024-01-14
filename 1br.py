@@ -61,29 +61,6 @@ def get_chunk_positions(file_name: str) -> List[Tuple[str, int, int]]:
     return chunks
 
 
-def process_chunk(file_name: str, begin: int, end: int) -> Dict[str, Tuple[float]]:
-    print (f'processing chunk {begin}:{end}')
-    pc_begin, pt_begin = time.perf_counter(), time.process_time()
-    res = {}
-    with open(file_name, 'r') as file:
-        for i, line in enumerate(file):
-            if i >= begin and i < end:
-                name, val = line.split(';')
-                if res.get(name) is None:
-                    res[name] = (float('inf'), -float('inf'), 0.0, 0.0)
-                
-                val = float(val)
-                # update stats for this location
-                min_val, max_val, csum, count = res[name]
-                res[name] = (min(val, min_val), max(val, max_val), csum + val, count + 1)
-            elif i >= end:
-                break
-    
-    pc_end, pt_end = time.perf_counter(), time.process_time()
-    print (f"CPU time: {pc_end - pc_begin:.2f} seconds, Real time: {pt_end - pt_begin:.2f} seconds, chunk : {begin}:{end}")
-    
-    return res
-
 def process_chunk2(file_name: str, begin: int, end: int) -> Dict[str, Tuple[float]]:
     print (f'processing chunk {begin}:{end}')
     pc_begin, pt_begin = time.perf_counter(), time.process_time()
@@ -108,17 +85,9 @@ def process_chunk2(file_name: str, begin: int, end: int) -> Dict[str, Tuple[floa
     print (f"CPU time: {pc_end - pc_begin:.2f} seconds, Real time: {pt_end - pt_begin:.2f} seconds, chunk : {begin}:{end}")
     
     return res
-
+    
 @profile_exec
 def process_chunks_parallel(chunks: List[Tuple[int, int]], num_cpus: int):
-    chunk_results = None
-    with mp.Pool(num_cpus) as pool:
-        chunk_results = pool.starmap(process_chunk, chunks)
-    
-    return chunk_results
-    
-@profile_exec
-def process_chunks_parallel2(chunks: List[Tuple[int, int]], num_cpus: int):
     chunk_results = None
     with mp.Pool(num_cpus) as pool:
         chunk_results = pool.starmap(process_chunk2, chunks)
@@ -148,38 +117,19 @@ def get_sorted_results(res: Dict[str, Tuple[float, float, float, float]]) -> Dic
     
     return pr_res
 
+
 @profile_exec
 def process_file(file_name: str) -> None:
-    num_lines = get_num_lines(file_name)
-    num_cpus = mp.cpu_count()
-    chunk_size = num_lines // num_cpus
-    
-    print (f'num_lines : {num_lines}, number of cpus for multi-processing : {num_cpus}, chunk_size : {chunk_size}')
-
-    # process file in chunks
-    chunks = [ (file_name, i * chunk_size, (i + 1) * chunk_size) if i != num_cpus - 1 else (file_name, i * chunk_size, num_lines) for i in range(num_cpus)]
-    chunk_results = process_chunks_parallel(chunks, num_cpus)
-
-    # combine results from each chunk
-    res  = get_combined_results(chunk_results)
-    
-    # sort by key and add min, max, avg to results
-    return get_sorted_results(res)
-
-
-
-@profile_exec
-def process_file2(file_name: str) -> None:
     # process file in chunks
     chunks = get_chunk_positions(file_name)
-    chunk_results = process_chunks_parallel2(chunks, mp.cpu_count())
+    chunk_results = process_chunks_parallel(chunks, mp.cpu_count())
 
     # combine results from each chunk
     res  = get_combined_results(chunk_results)
     
-    # sort by key and add min, max, avg to results
+    # sort by key and add min, max and avg to results
     return get_sorted_results(res)
 
 if __name__ == "__main__":
     input_file = sys.argv[1]
-    print (process_file2(input_file))
+    print (process_file(input_file))
